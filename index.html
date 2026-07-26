@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전개도 마스터 — 펼치고 접어보는 전개도</title>
+<style>
+  :root{
+    --bg:#0b2540; --panel:#123459; --panel-light:#1c4474;
+    --text:#eaf4ff; --text-dim:#9fc1e0; --accent:#ffb454;
+    --correct:#5fd86f; --wrong:#ff6b6b; --grid:rgba(234,244,255,0.06);
+    --paper:#f4efe0; --ink:#1c3247; --link:#5bc8de;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--text);min-height:100vh;padding:18px 14px 70px;
+    font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,sans-serif;
+    background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/40px 40px,
+               linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/40px 40px,var(--bg);}
+  .wrap{max-width:860px;margin:0 auto}
+  .eyebrow{font-size:.74rem;letter-spacing:.18em;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:6px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .subtitle{color:var(--text-dim);font-size:.94rem;margin-bottom:16px;line-height:1.55}
+  .panel{background:var(--panel);border:1px solid rgba(234,244,255,.12);border-radius:14px;padding:20px;margin-bottom:16px}
+  .tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+  .tab{flex:1 1 130px;background:transparent;border:1px solid rgba(234,244,255,.22);color:var(--text-dim);
+       padding:11px 8px;border-radius:9px;cursor:pointer;font-size:.86rem;font-weight:700;font-family:inherit}
+  .tab:hover{border-color:var(--accent);color:var(--text)}
+  .tab[aria-pressed="true"]{background:var(--accent);color:#1a1306;border-color:var(--accent)}
+
+  .paperwrap{background:var(--paper);border-radius:12px;padding:14px 12px 12px;position:relative}
+  .paperwrap .cap{position:absolute;top:9px;left:13px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.1em;color:#5b7286}
+  canvas{display:block;width:100%}
+  #foldCv{height:330px}
+  @media(max-width:560px){#foldCv{height:280px}}
+
+  .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:#0f2032;
+       border:1px solid rgba(234,244,255,.14);border-radius:10px;padding:9px 11px;margin-bottom:12px}
+  .row .lab{font-size:.72rem;color:var(--text-dim);letter-spacing:.08em;flex:none}
+  .seg{display:flex;gap:5px;flex-wrap:wrap}
+  .segBtn{background:transparent;border:1px solid rgba(234,244,255,.24);color:var(--text);padding:9px 12px;
+          border-radius:7px;cursor:pointer;font-weight:700;font-size:.8rem;font-family:inherit}
+  .segBtn[aria-pressed="true"]{background:var(--link);color:#04121c;border-color:var(--link)}
+
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:8px;border-radius:4px;
+    background:linear-gradient(90deg,#26425e,#4a7ba8);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;
+    background:var(--accent);border:3px solid #2a2113;cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:var(--accent);border:3px solid #2a2113;cursor:pointer}
+  .slabel{display:flex;justify-content:space-between;font-size:.76rem;color:var(--text-dim);margin:8px 2px 5px}
+
+  .btn{border:none;border-radius:10px;background:var(--accent);color:#1a1306;font-weight:800;
+       font-size:.95rem;padding:13px 20px;cursor:pointer;min-height:50px;font-family:inherit}
+  .btn.ghost{background:transparent;border:1px solid rgba(234,244,255,.3);color:var(--text)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btnrow{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+
+  .prompt{font-size:1.02rem;margin:14px 0 11px;line-height:1.55}
+  .prompt b{color:var(--accent)}
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .choice{background:var(--paper);border:3px solid transparent;border-radius:11px;padding:8px 6px 6px;
+          cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:inherit}
+  .choice .num{font-size:.76rem;font-weight:800;color:#5b7286;align-self:flex-start;margin-left:4px}
+  .choice canvas{width:100%;height:112px}
+  .choice .tx{font-weight:800;color:#1c3247;font-size:.95rem;padding:20px 4px 24px;text-align:center;line-height:1.35}
+  .choice .tx small{display:block;font-weight:600;color:#5b7286;font-size:.76rem;margin-top:4px}
+  .choice:hover:not(:disabled){border-color:var(--link)}
+  .choice.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,180,84,.3)}
+  .choice.correct{border-color:var(--correct);background:#e3f5ec}
+  .choice.wrong{border-color:var(--wrong);background:#fbecea}
+  .choice:disabled{cursor:default}
+
+  .scorebar{display:flex;gap:16px;flex-wrap:wrap;font-size:.88rem;color:var(--text-dim);margin-top:13px}
+  .scorebar b{color:var(--text)}
+  .pill{background:var(--panel-light);border-radius:20px;padding:4px 13px;font-size:.82rem;color:var(--accent);font-weight:800}
+  .toast{font-size:.93rem;font-weight:700;min-height:22px;margin-top:10px;line-height:1.5}
+  .toast.ok{color:var(--correct)} .toast.no{color:var(--wrong)} .toast.go{color:var(--accent)}
+  .explain{background:rgba(91,200,222,.09);border-left:3px solid var(--link);border-radius:0 8px 8px 0;
+           padding:11px 13px;margin-top:11px;font-size:.87rem;color:var(--text-dim);line-height:1.65}
+  .explain b{color:var(--link)}
+  .formula{font-family:ui-monospace,monospace;background:rgba(255,180,84,.12);color:var(--accent);
+           padding:2px 7px;border-radius:5px;font-size:.85rem;display:inline-block;margin-top:3px}
+  .hidden{display:none !important}
+  .links{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .links a{color:var(--link);text-decoration:none;font-size:.83rem;border:1px solid rgba(91,200,222,.4);padding:7px 12px;border-radius:8px}
+  .links a:hover{background:rgba(91,200,222,.12)}
+  footer{max-width:860px;margin:14px auto 0;color:var(--text-dim);font-size:.8rem;line-height:1.6;text-align:center}
+  @media(max-width:560px){
+    body{padding:14px 10px 60px} .panel{padding:15px}
+    .choice canvas{height:126px} .prompt{font-size:.97rem}
+    .segBtn{padding:12px 13px;font-size:.84rem}   /* 터치 영역 확보 */
+    .tab{padding:12px 8px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Development · 전개도</div>
+  <h1>전개도 마스터</h1>
+  <p class="subtitle">입체의 겉면을 평면으로 <b>펼친 그림</b>이 전개도입니다. 슬라이더로 직접 <b>펼치고 접어보며</b> 전개도법 세 가지를 익힙니다.</p>
+
+  <div class="tabs" role="group" aria-label="모드 선택">
+    <button class="tab" id="tabLearn" aria-pressed="true">📖 펼쳐보기</button>
+    <button class="tab" id="tabMethod" aria-pressed="false">도전 ① 전개도법</button>
+    <button class="tab" id="tabWhich" aria-pressed="false">도전 ② 전개도→입체</button>
+    <button class="tab" id="tabExam" aria-pressed="false">🎯 종합시험</button>
+  </div>
+
+  <section id="secLearn">
+    <div class="panel">
+      <div class="row">
+        <span class="lab">입체</span>
+        <div class="seg" id="solidSeg"></div>
+      </div>
+
+      <div class="paperwrap">
+        <span class="cap" id="foldCap">전개도</span>
+        <canvas id="foldCv"></canvas>
+      </div>
+
+      <div class="slabel"><span>◀ 펼친 상태 (전개도)</span><span>접힌 상태 (입체) ▶</span></div>
+      <input id="foldRange" type="range" min="0" max="1" step="0.01" value="0">
+      <div class="btnrow">
+        <button class="btn ghost" id="btnAnim">▶ 접기 애니메이션</button>
+        <button class="btn ghost" id="btnFlat">전개도로</button>
+      </div>
+
+      <div class="explain" id="learnExplain"></div>
+    </div>
+  </section>
+
+  <section id="secQuiz" class="hidden">
+    <div class="panel">
+      <div class="prompt" id="qPrompt"></div>
+      <div id="qStageWrap" class="paperwrap">
+        <span class="cap" id="qStageCap"></span>
+        <canvas id="qStageCv" style="height:230px"></canvas>
+      </div>
+      <div class="choices" id="qChoices" style="margin-top:14px"></div>
+      <div class="btnrow">
+        <button class="btn" id="btnSubmit" disabled>제출</button>
+        <button class="btn ghost hidden" id="btnNext">다음 문제 →</button>
+        <button class="btn ghost" id="btnRestart">처음부터</button>
+      </div>
+      <div class="scorebar">
+        <span>문제 <b id="qRound">1</b> / <b id="qTotal">8</b></span>
+        <span>맞은 개수 <b id="qScore">0</b></span>
+        <span class="pill" id="qCombo">연속 0</span>
+      </div>
+      <div class="toast go" id="qToast">보기를 고른 뒤 <b>제출</b>을 누르세요.</div>
+      <div class="explain hidden" id="qExplain"></div>
+    </div>
+  </section>
+
+  <div class="panel" style="padding:16px 20px">
+    <div style="font-size:.84rem;color:var(--text-dim);margin-bottom:8px">🔗 같은 단원의 다른 도구</div>
+    <div class="links">
+      <a href="https://hongyul67-cpu.github.io/tusang-master/" target="_blank" rel="noopener">투상도 마스터 — 개념편</a>
+      <a href="https://hongyul67-cpu.github.io/section-view-explorer/" target="_blank" rel="noopener">단면도 익스플로러</a>
+      <a href="https://hongyul67-cpu.github.io/domyeon-master/" target="_blank" rel="noopener">도면읽기 마스터</a>
+    </div>
+  </div>
+</div>
+<footer>기초제도 Ⅲ. 제도의 기본 도법 — 5. 전개도 그리기<br>제작: hong · 기계 계열 특성화고 수업 보조 도구</footer>
+
+<script src="https://hongyul67-cpu.github.io/links/collector.js" data-tool="전개도 마스터"></script>
+<script>
+(function(){
+"use strict";
+const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+/* ================= 3D 접기 수학 (Node 로 정확도 검증 완료) ================= */
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const norm=a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];};
+function rotAxis(p,a,dir,ang){
+  const v=sub(p,a),c=Math.cos(ang),s=Math.sin(ang);
+  return add(a,add(add(mul(v,c),mul(cross(dir,v),s)),mul(dir,dot(dir,v)*(1-c))));
+}
+// 면 트리를 t(0=펼침,1=접힘)만큼 접는다
+function foldFaces(faces,t){
+  function xf(i,p){
+    const f=faces[i]; let q=p;
+    if(f.parent!==null && f.parent!==undefined){
+      const a=[f.hinge[0][0],f.hinge[0][1],0], b=[f.hinge[1][0],f.hinge[1][1],0];
+      q=rotAxis(q,a,norm(sub(b,a)),f.angle*t);
+      q=xf(f.parent,q);
+    }
+    return q;
+  }
+  return faces.map((f,i)=>({pts:f.pts.map(p=>xf(i,[p[0],p[1],0])),tone:f.tone,label:f.label}));
+}
+
+/* ================= 전개도(면 트리) 정의 ================= */
+// 각기둥: 옆면 n장을 일렬로(평행선법) + 위·아래 밑면
+function prismNet(n,w,h,capR){
+  const bend=2*Math.PI/n;                 // 이웃 옆면 사이 접힘각 = 360/n
+  const F=[{pts:[[0,0],[w,0],[w,h],[0,h]],parent:null,hinge:null,angle:0,tone:0,label:"옆면"}];
+  for(let i=1;i<n;i++)
+    F.push({pts:[[i*w,0],[(i+1)*w,0],[(i+1)*w,h],[i*w,h]],parent:i-1,
+            hinge:[[i*w,0],[i*w,h]],angle:bend,tone:i%2?1:0,label:"옆면"});
+  // 밑면(정n각형) — 첫 옆면 아래 모서리에 붙임
+  const apo=(w/2)/Math.tan(Math.PI/n);
+  const poly=(cy,flip)=>{
+    const p=[];
+    for(let i=0;i<n;i++){
+      const a=-Math.PI/2+ (i+.5)*2*Math.PI/n;
+      p.push([w/2+capR*Math.cos(a), cy+(flip?-1:1)*(apo+capR*Math.sin(a)+apo*0)]);
+    }
+    return p;
+  };
+  // 정n각형을 한 변이 (0,0)-(w,0) 에 놓이도록 구성
+  const base=[];
+  for(let i=0;i<n;i++){
+    const ang=Math.PI/2 - (i)*2*Math.PI/n + Math.PI/n*0;
+    base.push(i);
+  }
+  const mk=(y0,up)=>{                      // 한 변 (0,y0)-(w,y0) 을 공유하는 정n각형
+    const R=(w/2)/Math.sin(Math.PI/n), cy=y0+(up?-apo:apo);
+    const pts=[];
+    for(let i=0;i<n;i++){
+      const a=(up? Math.PI/2 : -Math.PI/2) + (2*i+1)*Math.PI/n * (up?1:-1);
+      pts.push([w/2+R*Math.cos(a+ (up?0:0)), cy+R*Math.sin(a)]);
+    }
+    return pts;
+  };
+  F.push({pts:mk(0,true),parent:0,hinge:[[0,0],[w,0]],angle:Math.PI/2,tone:2,label:"밑면"});
+  F.push({pts:mk(h,false),parent:0,hinge:[[w,h],[0,h]],angle:Math.PI/2,tone:2,label:"윗면"});
+  return F;
+}
+// 각뿔: 밑면 정n각형 + 옆면 삼각형 n장(방사선법)
+function pyramidNet(n,w,slant){
+  const apo=(w/2)/Math.tan(Math.PI/n);
+  const R=(w/2)/Math.sin(Math.PI/n);
+  const ratio=Math.min(.999,apo/slant);
+  const ang=Math.PI-Math.acos(ratio);      // 검증된 접힘각
+  const base=[];
+  for(let i=0;i<n;i++){ const a=2*Math.PI*i/n - Math.PI/2; base.push([R*Math.cos(a),R*Math.sin(a)]); }
+  const F=[{pts:base,parent:null,hinge:null,angle:0,tone:2,label:"밑면"}];
+  for(let i=0;i<n;i++){
+    const p1=base[i], p2=base[(i+1)%n];
+    const mx=(p1[0]+p2[0])/2, my=(p1[1]+p2[1])/2;
+    const L=Math.hypot(mx,my)||1;
+    const out=[mx+mx/L*slant, my+my/L*slant];
+    F.push({pts:[p1,p2,out],parent:0,hinge:[p2,p1],angle:ang,tone:i%2?1:0,label:"옆면"});
+  }
+  return F;
+}
+
+const SOLIDS={
+  cube:{name:"정육면체",method:"parallel",net:()=>prismNet(4,1.5,1.5),
+    note:"옆면 4장이 일렬로 펼쳐지고 위·아래 밑면이 붙습니다.",
+    formula:"옆면 전개 가로 = 밑면 둘레 = 4 × 한 변"},
+  box:{name:"사각기둥",method:"parallel",net:()=>prismNet(4,1.3,2.4),
+    note:"각기둥은 모선(옆면의 세로 모서리)이 서로 평행해 <b>평행선법</b>으로 펼칩니다.",
+    formula:"옆면 전개 가로 = 밑면 둘레, 세로 = 높이"},
+  tri:{name:"삼각기둥",method:"parallel",net:()=>prismNet(3,1.7,2.4),
+    note:"옆면 3장이 일렬로 펼쳐집니다. 밑면은 정삼각형.",
+    formula:"옆면 전개 가로 = 3 × 한 변"},
+  hex:{name:"육각기둥",method:"parallel",net:()=>prismNet(6,1.0,2.3),
+    note:"각의 수가 늘어날수록 원기둥에 가까워집니다.",
+    formula:"옆면 전개 가로 = 6 × 한 변"},
+  cyl:{name:"원기둥",method:"parallel",net:()=>prismNet(24,0.30,2.3),
+    note:"원기둥은 각의 수가 아주 많은 각기둥으로 볼 수 있습니다. 옆면을 펼치면 <b>직사각형</b>이 됩니다.",
+    formula:"옆면 전개 가로 = πd (밑면 원둘레), 세로 = 높이"},
+  pyr:{name:"사각뿔",method:"radial",net:()=>pyramidNet(4,1.7,2.2),
+    note:"뿔은 한 꼭짓점에서 모선이 <b>방사</b>되므로 <b>방사선법</b>으로 펼칩니다.",
+    formula:"옆면 = 밑변 × 모선으로 된 삼각형 4장"},
+  cone:{name:"원뿔",method:"radial",net:()=>pyramidNet(24,0.26,2.4),
+    note:"원뿔을 펼치면 <b>부채꼴</b>이 됩니다. 부채꼴의 반지름이 모선(ℓ)입니다.",
+    formula:"부채꼴 중심각 = 360° × r / ℓ"},
+  oblq:{name:"편심 원뿔(깔때기)",method:"triangle",net:()=>pyramidNet(12,0.42,2.3),
+    note:"위·아래 중심이 어긋나거나 면이 복잡하면 평행선법·방사선법을 쓸 수 없어, 면을 <b>삼각형으로 쪼개</b> 펼칩니다.",
+    formula:"삼각형법 — 각 삼각형의 실제 길이를 구해 이어 붙임"}
+};
+const METHODS={
+  parallel:{label:"평행선법",desc:"각기둥·원기둥",
+    why:"옆면의 모서리(모선)가 서로 <b>평행</b>할 때 씁니다. 각기둥·원기둥이 해당합니다."},
+  radial:{label:"방사선법",desc:"각뿔·원뿔",
+    why:"모선이 한 꼭짓점에서 <b>방사</b>될 때 씁니다. 각뿔·원뿔이 해당합니다."},
+  triangle:{label:"삼각형법",desc:"편심·복잡한 면",
+    why:"평행하지도 한 점에 모이지도 않는 복잡한 면을, <b>삼각형으로 분할</b>해 펼칠 때 씁니다."}
+};
+const SOLID_IDS=Object.keys(SOLIDS);
+
+/* ================= 그리기 ================= */
+function fit(cv){
+  const r=cv.getBoundingClientRect(), dpr=Math.min(devicePixelRatio||1,2);
+  const w=Math.max(10,r.width), h=Math.max(10,r.height);
+  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+  const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h);
+  return {c,w,h};
+}
+const TONES=["#e7dec6","#d9cca9","#c9b98f"];
+// 등각 투영
+function isoPt(p){ const K=Math.cos(Math.PI/6);
+  return [ (p[0]-p[1])*K, (p[0]+p[1])*0.5 - p[2] ]; }
+function drawFolded(cv,faces,opt){
+  opt=opt||{};
+  const {c,w,h}=fit(cv);
+  const proj=faces.map(f=>({pts:f.pts.map(isoPt),tone:f.tone,z:f.pts.reduce((s,p)=>s+p[0]+p[1]-p[2],0)/f.pts.length,label:f.label}));
+  let mnX=1e9,mxX=-1e9,mnY=1e9,mxY=-1e9;
+  proj.forEach(f=>f.pts.forEach(p=>{mnX=Math.min(mnX,p[0]);mxX=Math.max(mxX,p[0]);mnY=Math.min(mnY,p[1]);mxY=Math.max(mxY,p[1]);}));
+  const pad=opt.pad||26;
+  const s=Math.min((w-pad*2)/Math.max(.001,mxX-mnX),(h-pad*2)/Math.max(.001,mxY-mnY));
+  const ox=(w-(mxX-mnX)*s)/2-mnX*s, oy=(h-(mxY-mnY)*s)/2-mnY*s;
+  proj.sort((a,b)=>a.z-b.z);                       // 화가 알고리즘
+  proj.forEach(f=>{
+    c.beginPath();
+    f.pts.forEach((p,i)=>{const x=ox+p[0]*s,y=oy+p[1]*s; i?c.lineTo(x,y):c.moveTo(x,y);});
+    c.closePath();
+    c.fillStyle=TONES[f.tone||0]; c.fill();
+    c.strokeStyle="#1c3247"; c.lineWidth=opt.lw||1.6; c.lineJoin="round"; c.stroke();
+  });
+}
+
+/* ================= 펼쳐보기 ================= */
+const foldCv=document.getElementById("foldCv"), foldRange=document.getElementById("foldRange");
+const foldCap=document.getElementById("foldCap"), learnExplain=document.getElementById("learnExplain");
+const solidSeg=document.getElementById("solidSeg");
+let curSolid="box", curT=0, animId=null, cachedNet=null;
+
+SOLID_IDS.forEach(id=>{
+  const b=document.createElement("button");
+  b.className="segBtn"; b.type="button"; b.textContent=SOLIDS[id].name; b.dataset.id=id;
+  b.addEventListener("click",()=>{ setSolid(id); });
+  solidSeg.appendChild(b);
+});
+function setSolid(id){
+  curSolid=id; cachedNet=SOLIDS[id].net();
+  solidSeg.querySelectorAll(".segBtn").forEach(b=>b.setAttribute("aria-pressed",b.dataset.id===id));
+  renderLearn();
+}
+function renderLearn(){
+  if(!cachedNet) cachedNet=SOLIDS[curSolid].net();
+  drawFolded(foldCv, foldFaces(cachedNet,curT));
+  const S=SOLIDS[curSolid], M=METHODS[S.method];
+  foldCap.textContent = curT<0.03?"전개도 (펼친 상태)" : curT>0.97? S.name+" (접힌 상태)" : "접는 중…";
+  learnExplain.innerHTML="<b>"+S.name+"</b> — 전개도법: <b>"+M.label+"</b> ("+M.desc+")<br>"+
+    S.note+"<br><span class='formula'>"+S.formula+"</span>";
+}
+foldRange.addEventListener("input",()=>{ curT=parseFloat(foldRange.value); stopAnim(); renderLearn(); });
+function stopAnim(){ if(animId){cancelAnimationFrame(animId);clearInterval(animId);animId=null;} }
+document.getElementById("btnAnim").addEventListener("click",()=>{
+  stopAnim();
+  const from=curT>0.5?1:0, to=from?0:1; let k=0;
+  animId=setInterval(()=>{                       // rAF 는 백그라운드 탭에서 멈추므로 타이머 사용
+    k+=0.025; if(k>=1){k=1;stopAnim();}
+    const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;   // easeInOutQuad
+    curT=from+(to-from)*e; foldRange.value=curT; renderLearn();
+  },16);
+});
+document.getElementById("btnFlat").addEventListener("click",()=>{
+  stopAnim(); curT=0; foldRange.value=0; renderLearn();
+});
+
+/* ================= 퀴즈 ================= */
+const el=id=>document.getElementById(id);
+const qPrompt=el("qPrompt"),qChoices=el("qChoices"),qStageCv=el("qStageCv"),qStageCap=el("qStageCap"),
+      qStageWrap=el("qStageWrap"),qToast=el("qToast"),qExplain=el("qExplain"),
+      btnSubmit=el("btnSubmit"),btnNext=el("btnNext");
+let quiz={type:null,total:8,round:1,score:0,combo:0,best:0,answered:false,sel:null,q:null,log:[],started:0};
+
+function makeQ(type){
+  if(type==="method"){
+    const id=pick(SOLID_IDS), S=SOLIDS[id];
+    const opts=shuffle(Object.keys(METHODS).map(m=>({m,ok:m===S.method})));
+    return {type,solid:id,opts,answer:opts.findIndex(o=>o.ok),
+      prompt:"<b>"+S.name+"</b>의 전개도를 그릴 때 알맞은 <b>전개도법</b>은?",cap:S.name};
+  }
+  // which : 전개도를 보여주고 어떤 입체인지
+  const id=pick(SOLID_IDS);
+  const others=shuffle(SOLID_IDS.filter(x=>x!==id&&SOLIDS[x].name!==SOLIDS[id].name)).slice(0,3);
+  const opts=shuffle([{id,ok:true},...others.map(o=>({id:o,ok:false}))]);
+  return {type,solid:id,opts,answer:opts.findIndex(o=>o.ok),
+    prompt:"이 <b>전개도</b>를 접으면 어떤 입체가 될까요?",cap:"전개도 (펼친 상태)"};
+}
+function renderQ(){
+  const q=quiz.q;
+  qPrompt.innerHTML=q.prompt; qStageCap.textContent=q.cap; qStageWrap.classList.remove("hidden");
+  const net=SOLIDS[q.solid].net();
+  drawFolded(qStageCv, foldFaces(net, q.type==="method"?1:0));
+  qChoices.innerHTML="";
+  const paint=[];
+  q.opts.forEach((o,i)=>{
+    const b=document.createElement("button");
+    b.className="choice"; b.type="button";
+    const num=document.createElement("span"); num.className="num"; num.textContent="①②③④"[i]; b.appendChild(num);
+    if(q.type==="method"){
+      const t=document.createElement("div"); t.className="tx";
+      t.innerHTML=METHODS[o.m].label+"<small>"+METHODS[o.m].desc+"</small>"; b.appendChild(t);
+    }else{
+      const cv=document.createElement("canvas"); b.appendChild(cv);
+      const lab=document.createElement("div");
+      lab.style.cssText="font-weight:700;color:#1c3247;font-size:.8rem;padding-bottom:3px";
+      lab.textContent=SOLIDS[o.id].name; b.appendChild(lab);
+      paint.push(()=>drawFolded(cv, foldFaces(SOLIDS[o.id].net(),1), {pad:12,lw:1.2}));
+    }
+    b.onclick=()=>{ if(quiz.answered) return; quiz.sel=i; btnSubmit.disabled=false;
+      qChoices.querySelectorAll(".choice").forEach(x=>x.classList.toggle("sel",x===b)); };
+    qChoices.appendChild(b);
+  });
+  paint.forEach(f=>f());                       // DOM 부착 뒤 그림(백그라운드 탭에서도 동작)
+  quiz.answered=false; quiz.sel=null;
+  btnSubmit.disabled=true; btnSubmit.classList.remove("hidden");
+  btnNext.classList.add("hidden"); qExplain.classList.add("hidden");
+  qToast.className="toast go"; qToast.innerHTML="보기를 고른 뒤 <b>제출</b>을 누르세요.";
+  el("qRound").textContent=quiz.round; el("qTotal").textContent=quiz.total;
+  el("qScore").textContent=quiz.score; el("qCombo").textContent="연속 "+quiz.combo;
+}
+function submitQ(){
+  if(quiz.answered||quiz.sel==null) return;
+  quiz.answered=true;
+  const q=quiz.q, ok=quiz.sel===q.answer;
+  if(ok){quiz.score++;quiz.combo++;quiz.best=Math.max(quiz.best,quiz.combo);} else quiz.combo=0;
+  quiz.log.push({round:quiz.round,ok});
+  qChoices.querySelectorAll(".choice").forEach((b,i)=>{
+    b.disabled=true; b.classList.remove("sel");
+    if(i===q.answer) b.classList.add("correct"); else if(i===quiz.sel) b.classList.add("wrong");
+  });
+  el("qScore").textContent=quiz.score; el("qCombo").textContent="연속 "+quiz.combo;
+  qToast.className="toast "+(ok?"ok":"no");
+  qToast.textContent=ok?(quiz.combo>=3?"정답! "+quiz.combo+"연속 🔥":"정답이에요!")
+                       :"아쉬워요. 정답은 "+"①②③④"[q.answer]+"번.";
+  const S=SOLIDS[q.solid], M=METHODS[S.method];
+  qExplain.innerHTML = q.type==="method"
+    ? "<b>"+S.name+" → "+M.label+"</b><br>"+M.why+"<br><span class='formula'>"+S.formula+"</span>"
+    : "정답은 <b>"+S.name+"</b>입니다. "+S.note+"<br><span class='formula'>"+S.formula+"</span>";
+  qExplain.classList.remove("hidden");
+  btnSubmit.classList.add("hidden"); btnNext.classList.remove("hidden");
+  btnNext.textContent = quiz.round>=quiz.total?"결과 보기 →":"다음 문제 →";
+}
+function startQuiz(type,total){
+  quiz={type,total:total||8,round:1,score:0,combo:0,best:0,answered:false,sel:null,q:null,log:[],started:Date.now()};
+  quiz.q=nextQ(); renderQ();
+}
+const nextQ=()=>makeQ(quiz.type==="exam"?pick(["method","which"]):quiz.type);
+btnSubmit.onclick=submitQ;
+btnNext.onclick=()=>{ if(quiz.round>=quiz.total){finish();return;} quiz.round++; quiz.q=nextQ(); renderQ(); };
+el("btnRestart").onclick=()=>startQuiz(quiz.type,quiz.total);
+function finish(){
+  const pct=Math.round(quiz.score/quiz.total*100), sec=Math.round((Date.now()-quiz.started)/1000);
+  qStageWrap.classList.add("hidden"); qChoices.innerHTML="";
+  qPrompt.innerHTML="🎉 <b>"+quiz.total+"문제 완료!</b>";
+  qToast.className="toast "+(pct>=80?"ok":pct>=60?"go":"no");
+  qToast.textContent=pct+"점 · "+quiz.score+"/"+quiz.total+" 정답 · 최고 "+quiz.best+"연속 · "+sec+"초";
+  qExplain.classList.remove("hidden");
+  qExplain.innerHTML= pct>=80?"훌륭합니다! 전개도법 세 가지를 잘 구분합니다."
+    : pct>=60?"좋아요. <b>펼쳐보기</b>에서 각기둥과 뿔을 번갈아 접어 보면 더 확실해집니다."
+    : "<b>펼쳐보기</b>에서 입체를 직접 접었다 펴 보며 모선이 평행한지, 한 점에 모이는지 확인해 보세요.";
+  btnSubmit.classList.add("hidden"); btnNext.classList.add("hidden");
+  if(window.ResultCollector && quiz.type==="exam"){
+    try{ ResultCollector.open({score:pct,correct:quiz.score,total:quiz.total,
+      wrong:quiz.log.filter(r=>!r.ok).map(r=>r.round),durationSec:sec}); }catch(e){}
+  }
+}
+
+/* ================= 탭 ================= */
+const TABS=[["tabLearn","learn"],["tabMethod","method"],["tabWhich","which"],["tabExam","exam"]];
+function setMode(m){
+  TABS.forEach(([id,v])=>el(id).setAttribute("aria-pressed",v===m));
+  const learn=m==="learn";
+  el("secLearn").classList.toggle("hidden",!learn);
+  el("secQuiz").classList.toggle("hidden",learn);
+  stopAnim();
+  if(learn) renderLearn(); else startQuiz(m,m==="exam"?10:8);
+}
+TABS.forEach(([id,v])=>el(id).onclick=()=>setMode(v));
+
+let rt=null;
+addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{
+  if(el("secLearn").classList.contains("hidden")){ if(quiz.q) renderQ(); } else renderLearn();
+},180);});
+
+setSolid("box");
+setMode("learn");
+})();
+</script>
+</body>
+</html>
