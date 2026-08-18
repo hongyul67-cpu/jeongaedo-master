@@ -426,7 +426,7 @@ const el=id=>document.getElementById(id);
 const qPrompt=el("qPrompt"),qChoices=el("qChoices"),qStageCv=el("qStageCv"),qStageCap=el("qStageCap"),
       qStageWrap=el("qStageWrap"),qToast=el("qToast"),qExplain=el("qExplain"),
       btnSubmit=el("btnSubmit"),btnNext=el("btnNext");
-let quiz={type:null,total:8,round:1,score:0,combo:0,best:0,answered:false,sel:null,q:null,log:[],started:0};
+let quiz={type:null,total:8,round:1,score:0,combo:0,best:0,answered:false,sel:null,q:null,log:[],wrongDetail:[],started:0};
 
 function makeQ(type){
   if(type==="method"){
@@ -481,6 +481,7 @@ function submitQ(){
   const q=quiz.q, ok=quiz.sel===q.answer;
   if(ok){quiz.score++;quiz.combo++;quiz.best=Math.max(quiz.best,quiz.combo);} else quiz.combo=0;
   quiz.log.push({round:quiz.round,ok});
+  if(!ok) quiz.wrongDetail.push({round:quiz.round, q:q, sel:quiz.sel, opts:(typeof examOptTexts==="function"?examOptTexts():null)});
   qChoices.querySelectorAll(".choice").forEach((b,i)=>{
     b.disabled=true; b.classList.remove("sel");
     if(i===q.answer) b.classList.add("correct"); else if(i===quiz.sel) b.classList.add("wrong");
@@ -499,7 +500,7 @@ function submitQ(){
 }
 function startQuiz(type,total){
   const rv=el("qReview"); if(rv) rv.remove();
-  quiz={type,total:total||8,round:1,score:0,combo:0,best:0,answered:false,sel:null,rev:[],q:null,log:[],started:Date.now()};
+  quiz={type,total:total||8,round:1,score:0,combo:0,best:0,answered:false,sel:null,rev:[],q:null,log:[],started:Date.now(),wrongDetail:[]};
   quiz.q=nextQ(); renderQ();
 }
 const nextQ=()=>makeQ(quiz.type==="exam"?pick(["method","which"]):quiz.type);
@@ -603,6 +604,27 @@ function rcAttach(anchor, payloadFn, opts){
   };
   anchor.after ? anchor.after(b) : anchor.parentNode.insertBefore(b, anchor.nextSibling);
 }
+/* ── 오답을 "무엇을 틀렸는지"로 남긴다 (규약 §1 ②) ──
+   시험은 quiz.rev 에 문항이 다 들어 있고, 연습은 quiz.wrongDetail 에 모은다.
+   결과 예) "3번 ① 정육면체 전개도→② 원뿔 전개도" */
+function rcShort(t,n){
+  t=String(t==null?"":t).replace(/<[^>]*>/g," ")
+    .replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&")
+    .replace(/\s+/g," ").trim();
+  t=t.replace(/^(?:[\u2460-\u2469]\s*)+/,"");   // 겹쳐 붙은 보기 번호 정리
+  return t.length>n ? t.slice(0,n-1)+"\u2026" : t;
+}
+function rcWrongList(){
+  var src = (quiz && quiz.rev && quiz.rev.length)
+    ? quiz.rev.filter(function(r){ return !r.ok; })
+    : ((quiz && quiz.wrongDetail) || []);
+  return src.map(function(r){
+    var mine, ans;
+    try{ mine = rcShort(examAnsText(r, r.sel), 16); }catch(e){ mine = "(응답)"; }
+    try{ ans  = rcShort(examAnsText(r, r.q.answer), 16); }catch(e){ ans = "(정답)"; }
+    return r.round + "\ubc88 " + mine + "\u2192" + ans;
+  });
+}
 /* 제출 시 기록될 활동명과 생기부 키워드 */
 const MODE_LABEL={method:"전개도 — 전개도법", which:"전개도 — 전개도→입체", exam:"전개도 — 종합시험"};
 const MODE_EXTRA={method:["전개도법 구분"], which:["공간 추론"], exam:["전개도 종합 이해"]};
@@ -624,7 +646,7 @@ function finish(){
   if(window.ResultCollector){
     rcAttach(rcAnchor,
       ()=>({score:pct, correct:quiz.score, total:quiz.total,
-            wrong:quiz.log.filter(r=>!r.ok).map(r=>r.round), durationSec:sec}),
+            wrong:rcWrongList(), durationSec:sec}),
       { mode: MODE_LABEL[quiz.type] || quiz.type, extra: MODE_EXTRA[quiz.type] || [] });
   }
 }
