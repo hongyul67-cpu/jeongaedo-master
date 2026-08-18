@@ -505,6 +505,29 @@ const nextQ=()=>makeQ(quiz.type==="exam"?pick(["method","which"]):quiz.type);
 btnSubmit.onclick=submitQ;
 btnNext.onclick=()=>{ if(quiz.round>=quiz.total){finish();return;} quiz.round++; quiz.q=nextQ(); renderQ(); };
 el("btnRestart").onclick=()=>startQuiz(quiz.type,quiz.total);
+/* collector.js가 아직 구버전이어도 제출 버튼이 보이도록 하는 대비 코드 */
+function rcAttach(anchor, payloadFn, opts){
+  var RC = window.ResultCollector;
+  if(!RC || !anchor) return;
+  if(RC.attach) return RC.attach(anchor, payloadFn, opts);
+  var old = document.getElementById("rcBtn"); if(old && old.parentNode) old.parentNode.removeChild(old);
+  var b = document.createElement("button");
+  b.id="rcBtn"; b.className="btn"; b.style.marginTop="12px"; b.textContent="🧑‍🏫 선생님께 결과 제출";
+  b.onclick=function(){
+    if(!(RC.config && RC.config.endpoint)){
+      alert("이 링크로는 제출이 되지 않아요. 선생님이 나눠 준 제출용 링크로 들어와야 합니다.");
+      return;
+    }
+    var p = payloadFn() || {};
+    if(opts && opts.mode) p.mode = opts.mode;
+    if(opts && opts.extra) p.extra = opts.extra;
+    RC.open(p);
+  };
+  anchor.after ? anchor.after(b) : anchor.parentNode.insertBefore(b, anchor.nextSibling);
+}
+/* 제출 시 기록될 활동명과 생기부 키워드 */
+const MODE_LABEL={method:"전개도 — 전개도법", which:"전개도 — 전개도→입체", exam:"전개도 — 종합시험"};
+const MODE_EXTRA={method:["전개도법 구분"], which:["공간 추론"], exam:["전개도 종합 이해"]};
 function finish(){
   const pct=Math.round(quiz.score/quiz.total*100), sec=Math.round((Date.now()-quiz.started)/1000);
   if(window.RankKit) RankKit.award(pct);   /* 랭킹전 RP 정산 */
@@ -517,9 +540,12 @@ function finish(){
     : pct>=60?"좋아요. <b>펼쳐보기</b>에서 각기둥과 뿔을 번갈아 접어 보면 더 확실해집니다."
     : "<b>펼쳐보기</b>에서 입체를 직접 접었다 펴 보며 모선이 평행한지, 한 점에 모이는지 확인해 보세요.";
   btnSubmit.classList.add("hidden"); btnNext.classList.add("hidden");
-  if(window.ResultCollector && quiz.type==="exam"){
-    try{ ResultCollector.open({score:pct,correct:quiz.score,total:quiz.total,
-      wrong:quiz.log.filter(r=>!r.ok).map(r=>r.round),durationSec:sec}); }catch(e){}
+  // 제출 — 연습 모드·종합시험 모두 가능 (제출 링크가 없어도 버튼은 보이고 안내해 줌)
+  if(window.ResultCollector){
+    rcAttach(qExplain,
+      ()=>({score:pct, correct:quiz.score, total:quiz.total,
+            wrong:quiz.log.filter(r=>!r.ok).map(r=>r.round), durationSec:sec}),
+      { mode: MODE_LABEL[quiz.type] || quiz.type, extra: MODE_EXTRA[quiz.type] || [] });
   }
 }
 
