@@ -498,13 +498,91 @@ function submitQ(){
   btnNext.textContent = quiz.round>=quiz.total?"결과 보기 →":"다음 문제 →";
 }
 function startQuiz(type,total){
-  quiz={type,total:total||8,round:1,score:0,combo:0,best:0,answered:false,sel:null,q:null,log:[],started:Date.now()};
+  const rv=el("qReview"); if(rv) rv.remove();
+  quiz={type,total:total||8,round:1,score:0,combo:0,best:0,answered:false,sel:null,rev:[],q:null,log:[],started:Date.now()};
   quiz.q=nextQ(); renderQ();
 }
 const nextQ=()=>makeQ(quiz.type==="exam"?pick(["method","which"]):quiz.type);
 btnSubmit.onclick=submitQ;
 btnNext.onclick=()=>{ if(quiz.round>=quiz.total){finish();return;} quiz.round++; quiz.q=nextQ(); renderQ(); };
 el("btnRestart").onclick=()=>startQuiz(quiz.type,quiz.total);
+/* ══ 종합시험 — 채점을 끝으로 미루고 오답노트로 보여준다 ═══════════════
+   연습(도전 ①②③)은 지금처럼 제출하면 바로 정답이 보인다.
+   종합시험은 맞았는지 알려 주지 않고 넘어가다가, 끝나면 틀린 문제만 모아 보여준다. */
+let EXAM_MASK=false;
+function examCv(){ return qStageCv; }
+function examRedraw(q){ drawFolded(qStageCv, foldFaces(SOLIDS[q.solid].net(), q.type==="method"?1:0)); }
+function examMaskNow(q, sel, ok, shot, explainHtml, opts){
+  quiz.rev.push({round:quiz.round, q:q, sel:sel, ok:ok, shot:shot, explain:explainHtml, opts:opts});
+  qChoices.querySelectorAll(".choice").forEach(b=>b.classList.remove("correct","wrong","sel"));
+  qToast.className="toast go";
+  qToast.textContent="제출했어요 · 채점은 마지막에 한꺼번에 합니다";
+  qExplain.classList.add("hidden"); qExplain.innerHTML="";
+  el("qScore").textContent="—"; el("qCombo").textContent="채점은 마지막에";
+  EXAM_MASK=true;
+  try{ examRedraw(q); }catch(e){}
+  EXAM_MASK=false;
+}
+(function(){
+  const orig=submitQ;
+  submitQ=function(){
+    if(!quiz || quiz.type!=="exam") return orig.apply(this,arguments);
+    const q=quiz.q, sel=quiz.sel, before=quiz.score, was=quiz.answered;
+    const opts=examOptTexts();
+    EXAM_MASK=true;
+    try{ orig.apply(this,arguments); } finally { EXAM_MASK=false; }
+    if(was || !quiz.answered) return;               // 실제로 채점된 경우에만
+    if(!quiz.rev) quiz.rev=[];
+    const ok=quiz.score>before;
+    let shot=null;
+    try{ const cv=examCv(); if(cv) shot=cv.toDataURL("image/png"); }catch(e){}
+    examMaskNow(q, sel, ok, shot, qExplain.innerHTML, opts);
+  };
+  if(typeof btnSubmit!=="undefined" && btnSubmit) btnSubmit.onclick=submitQ;
+})();
+function examOptTexts(){
+  // 학생이 실제로 본 보기 문구를 그대로 저장한다 (도구마다 보기 구조가 달라서)
+  return [].map.call(qChoices.querySelectorAll(".choice"), function(b){
+    const t=b.querySelector(".tx");
+    return ((t?t.innerText:b.innerText)||"").replace(/\s+/g," ").trim();
+  });
+}
+function examAnsText(r, i){
+  if(i==null) return "무응답";
+  if(r.opts && r.opts[i]) return ("①②③④"[i]||"")+" "+r.opts[i];
+  const q=r.q;
+  if(q.opts && q.opts[i]!==undefined){
+    const o=q.opts[i];
+    if(typeof o==="string") return ("①②③④"[i]||"")+" "+o;
+    if(o && o.t) return ("①②③④"[i]||"")+" "+o.t;
+  }
+  if(q.need) return q.need.join(" ");
+  return String(i);
+}
+function examReview(){
+  const oldB=el("qReview"); if(oldB) oldB.remove();
+  const wrongs=(quiz.rev||[]).filter(r=>!r.ok);
+  const box=document.createElement("div");
+  box.id="qReview";
+  box.style.cssText="margin-top:14px;text-align:left";
+  let h='<div style="font-weight:800;font-size:15px;margin-bottom:8px">📝 오답노트'+
+        (wrongs.length? (" — 틀린 "+wrongs.length+"문제") : " — 전부 맞혔습니다!")+'</div>';
+  if(!wrongs.length) h+='<div style="font-size:13px;opacity:.85">다시 볼 문제가 없습니다.</div>';
+  wrongs.forEach(function(r){
+    h+='<div style="border:1px solid rgba(120,150,210,.45);border-radius:12px;padding:12px;margin-bottom:10px">'+
+       '<div style="font-size:12.5px;opacity:.75;margin-bottom:6px">문제 '+r.round+'</div>'+
+       (r.shot?'<img src="'+r.shot+'" alt="문제 그림" style="width:100%;border-radius:8px;margin-bottom:8px">':'')+
+       '<div style="font-size:14px;margin-bottom:8px">'+(r.q.prompt||"")+'</div>'+
+       '<div style="font-size:13px;margin-bottom:3px">내 답 — '+examAnsText(r,r.sel)+'</div>'+
+       '<div style="font-size:13px;font-weight:700;margin-bottom:6px">정답 — '+examAnsText(r,r.q.answer)+'</div>'+
+       (r.explain?'<div style="font-size:13px;line-height:1.6;opacity:.9">'+r.explain+'</div>':'')+
+       '</div>';
+  });
+  box.innerHTML=h;
+  qExplain.after(box);
+  return box;
+}
+
 /* collector.js가 아직 구버전이어도 제출 버튼이 보이도록 하는 대비 코드 */
 function rcAttach(anchor, payloadFn, opts){
   var RC = window.ResultCollector;
@@ -541,8 +619,10 @@ function finish(){
     : "<b>펼쳐보기</b>에서 입체를 직접 접었다 펴 보며 모선이 평행한지, 한 점에 모이는지 확인해 보세요.";
   btnSubmit.classList.add("hidden"); btnNext.classList.add("hidden");
   // 제출 — 연습 모드·종합시험 모두 가능 (제출 링크가 없어도 버튼은 보이고 안내해 줌)
+  let rcAnchor=qExplain;
+  if(quiz.type==="exam"){ try{ rcAnchor=examReview()||qExplain; }catch(e){} }
   if(window.ResultCollector){
-    rcAttach(qExplain,
+    rcAttach(rcAnchor,
       ()=>({score:pct, correct:quiz.score, total:quiz.total,
             wrong:quiz.log.filter(r=>!r.ok).map(r=>r.round), durationSec:sec}),
       { mode: MODE_LABEL[quiz.type] || quiz.type, extra: MODE_EXTRA[quiz.type] || [] });
@@ -557,7 +637,7 @@ function setMode(m){
   el("secLearn").classList.toggle("hidden",!learn);
   el("secQuiz").classList.toggle("hidden",learn);
   stopAnim();
-  if(learn) renderLearn(); else startQuiz(m,m==="exam"?10:8);
+  if(learn) renderLearn(); else startQuiz(m,m==="exam"?20:8);
 }
 TABS.forEach(([id,v])=>el(id).onclick=()=>setMode(v));
 
