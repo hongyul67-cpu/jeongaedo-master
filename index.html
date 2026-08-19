@@ -19,6 +19,7 @@
   .wrap{max-width:860px;margin:0 auto}
   .eyebrow{font-size:.74rem;letter-spacing:.18em;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:6px}
   h1{font-size:1.5rem;margin:0 0 4px}
+  .howto{margin-top:10px;padding-top:10px;border-top:1px solid rgba(234,244,255,.14);font-size:.9rem;line-height:1.6;opacity:.92}
   .subtitle{color:var(--text-dim);font-size:.94rem;margin-bottom:16px;line-height:1.55}
   .panel{background:var(--panel);border:1px solid rgba(234,244,255,.12);border-radius:14px;padding:20px;margin-bottom:16px}
   .tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
@@ -96,7 +97,7 @@
 <div class="wrap">
   <div class="eyebrow">Development · 전개도</div>
   <h1>전개도 마스터</h1>
-  <p class="subtitle">입체의 겉면을 평면으로 <b>펼친 그림</b>이 전개도입니다. 슬라이더로 직접 <b>펼치고 접어보며</b> 전개도법 세 가지를 익힙니다.</p>
+  <p class="subtitle">입체의 겉면을 평면으로 <b>펼친 그림</b>이 전개도입니다. 슬라이더로 직접 <b>펼치고 접어보며</b> 전개도법 세 가지를 익힙니다.<br>상자·종이컵처럼 판재를 접어 만드는 것, <b>덕트·선박·항공기</b>처럼 형틀로 찍어 낼 수 없거나 크고 복잡한 제품을 만들 때 전개도를 씁니다.</p>
 
   <div class="tabs" role="group" aria-label="모드 선택">
     <button class="tab" id="tabLearn" aria-pressed="true">📖 펼쳐보기</button>
@@ -342,11 +343,11 @@ const SOLIDS={
 };
 const METHODS={
   parallel:{label:"평행선법",desc:"각기둥·원기둥",
-    why:"옆면의 모서리(모선)가 서로 <b>평행</b>할 때 씁니다. 각기둥·원기둥이 해당합니다."},
+    why:"옆면의 모서리(모선)가 서로 <b>평행</b>할 때 씁니다. 각기둥·원기둥이 해당합니다.<br>원기둥은 평면도의 원둘레를 <b>12등분</b>한 뒤 그 간격을 옮겨 그리거나, 원둘레의 실제 길이 <b>L = πD</b>를 구해 수평선을 긋고 12등분해서 전개합니다. 경사로 잘린 원기둥도 같은 방법으로 각 등분점의 높이를 옮겨 곡선으로 잇습니다."},
   radial:{label:"방사선법",desc:"각뿔·원뿔",
-    why:"모선이 한 꼭짓점에서 <b>방사</b>될 때 씁니다. 각뿔·원뿔이 해당합니다."},
+    why:"모선이 한 꼭짓점에서 <b>방사</b>될 때 씁니다. 각뿔·원뿔이 해당합니다.<br>원뿔은 꼭짓점을 중심으로 <b>모선 길이 ℓ</b>을 반지름으로 하는 부채꼴을 그리고, 중심각을 <b>360° × r / ℓ</b>로 잡아 펼칩니다."},
   triangle:{label:"삼각형법",desc:"편심·복잡한 면",
-    why:"평행하지도 한 점에 모이지도 않는 복잡한 면을, <b>삼각형으로 분할</b>해 펼칠 때 씁니다."}
+    why:"평행하지도 한 점에 모이지도 않는 복잡한 면을, <b>삼각형으로 분할</b>해 펼칠 때 씁니다.<br>윗면이 기울어 잘린 원뿔이나 위·아래 중심이 어긋난 깔때기처럼, 각 삼각형의 <b>실제 길이</b>를 구해 차례로 이어 붙입니다."}
 };
 const SOLID_IDS=Object.keys(SOLIDS);
 
@@ -404,7 +405,8 @@ function renderLearn(){
   const S=SOLIDS[curSolid], M=METHODS[S.method];
   foldCap.textContent = curT<0.03?"전개도 (펼친 상태)" : curT>0.97? S.name+" (접힌 상태)" : "접는 중…";
   learnExplain.innerHTML="<b>"+S.name+"</b> — 전개도법: <b>"+M.label+"</b> ("+M.desc+")<br>"+
-    S.note+"<br><span class='formula'>"+S.formula+"</span>";
+    S.note+"<br><span class='formula'>"+S.formula+"</span>"+
+    "<div class='howto'>"+M.why+"</div>";
 }
 foldRange.addEventListener("input",()=>{ curT=parseFloat(foldRange.value); stopAnim(); renderLearn(); });
 function stopAnim(){ if(animId){cancelAnimationFrame(animId);clearInterval(animId);animId=null;} }
