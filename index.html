@@ -297,23 +297,58 @@ function prismNet(n,w,h,capR){
   return F;
 }
 // 각뿔: 밑면 정n각형 + 옆면 삼각형 n장(방사선법)
+/* 각뿔·원뿔의 전개도 — 옆면을 꼭짓점에서 이어 붙인 부채꼴로 편다.
+   전에는 삼각 조각을 밑면의 각 변에 따로 매달아 펼쳐서 별 모양이 나왔는데,
+   교과서의 원뿔 전개도는 조각이 이어 붙은 부채꼴(반지름 = 모선 ℓ)이다.
+   접힘각은 이론식 대신 3차원 각뿔을 실제로 세워 두 옆면의 법선 사이 각을 재서 쓴다. */
 function pyramidNet(n,w,slant){
-  const apo=(w/2)/Math.tan(Math.PI/n);
-  const R=(w/2)/Math.sin(Math.PI/n);
-  const ratio=Math.min(.999,apo/slant);
-  const ang=Math.PI-Math.acos(ratio);      // 검증된 접힘각
-  const base=[];
-  for(let i=0;i<n;i++){ const a=2*Math.PI*i/n - Math.PI/2; base.push([R*Math.cos(a),R*Math.sin(a)]); }
-  const F=[{pts:base,parent:null,hinge:null,angle:0,tone:2,label:"밑면"}];
+  const apo=(w/2)/Math.tan(Math.PI/n);        // 밑면 중심 → 변
+  const R=(w/2)/Math.sin(Math.PI/n);          // 밑면 중심 → 꼭짓점
+  const Lv=Math.hypot(slant, w/2);            // 꼭짓점 → 밑면 꼭짓점 = 모선 ℓ (부채꼴 반지름)
+  const h=Math.sqrt(Math.max(1e-9, slant*slant-apo*apo));
+
+  // 이웃 옆면 사이 접힘각을 3차원에서 잰다
+  const sub=(u,v)=>[u[0]-v[0],u[1]-v[1],u[2]-v[2]];
+  const crs=(u,v)=>[u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+  const dt=(u,v)=>u[0]*v[0]+u[1]*v[1]+u[2]*v[2];
+  const un=u=>{const l=Math.hypot(u[0],u[1],u[2])||1; return [u[0]/l,u[1]/l,u[2]/l];};
+  const A=[0,0,h], V=i=>{const t=2*Math.PI*i/n; return [R*Math.cos(t),R*Math.sin(t),0];};
+  const fn=i=>un(crs(sub(V(i),A), sub(V(i+1),A)));
+  const bend=Math.acos(Math.max(-1,Math.min(1, dt(fn(0),fn(1)))));
+  const baseBend=Math.PI-Math.acos(Math.min(.999, apo/slant));
+
+  // 펼친 부채꼴 — 꼭짓점을 원점에 두고 조각을 나란히 놓는다
+  const beta=2*Math.asin(Math.min(1,(w/2)/Lv));     // 조각 하나의 중심각
+  const start=-Math.PI/2-(n*beta)/2;
+  const P=i=>{const t=start+i*beta; return [Lv*Math.cos(t), Lv*Math.sin(t)];};
+  const apex=[0,0];
+
+  // 밑면은 첫 조각의 바깥 모서리에 붙인다
+  const p0=P(0), p1=P(1);
+  const mx=(p0[0]+p1[0])/2, my=(p0[1]+p1[1])/2;
+  const ux=p1[0]-p0[0], uy=p1[1]-p0[1], ul=Math.hypot(ux,uy)||1;
+  let nx=-uy/ul, ny=ux/ul;
+  if(mx*nx+my*ny < 0){ nx=-nx; ny=-ny; }            // 꼭짓점 반대쪽(바깥)으로
+  const bc=[mx+nx*apo, my+ny*apo];
+  const a0=Math.atan2(p0[1]-bc[1], p0[0]-bc[0]);
+  let step=Math.atan2(p1[1]-bc[1], p1[0]-bc[0])-a0;
+  while(step>Math.PI) step-=2*Math.PI;
+  while(step<-Math.PI) step+=2*Math.PI;
+  const basePts=[];
+  for(let i=0;i<n;i++){ const t=a0+step*i; basePts.push([bc[0]+R*Math.cos(t), bc[1]+R*Math.sin(t)]); }
+
+  const F=[{pts:basePts,parent:null,hinge:null,angle:0,tone:2,label:"밑면"}];
   for(let i=0;i<n;i++){
-    const p1=base[i], p2=base[(i+1)%n];
-    const mx=(p1[0]+p2[0])/2, my=(p1[1]+p2[1])/2;
-    const L=Math.hypot(mx,my)||1;
-    const out=[mx+mx/L*slant, my+my/L*slant];
-    F.push({pts:[p1,p2,out],parent:0,hinge:[p2,p1],angle:ang,tone:i%2?1:0,label:"옆면"});
+    const q=P(i), r=P(i+1);
+    F.push({pts:[q,r,apex],
+            parent: i===0 ? 0 : i,                  // 첫 조각은 밑면에, 나머지는 앞 조각에
+            hinge:  i===0 ? [r,q] : [q,apex],
+            angle:  i===0 ? -baseBend : -bend,
+            tone: i%2?1:0, label:"옆면"});
   }
   return F;
 }
+
 
 const SOLIDS={
   cube:{name:"정육면체",method:"parallel",net:()=>prismNet(4,1.5,1.5),
