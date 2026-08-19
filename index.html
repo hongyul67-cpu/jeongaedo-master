@@ -366,21 +366,61 @@ function isoPt(p){ const K=Math.cos(Math.PI/6);
 function drawFolded(cv,faces,opt){
   opt=opt||{};
   const {c,w,h}=fit(cv);
-  const proj=faces.map(f=>({pts:f.pts.map(isoPt),tone:f.tone,z:f.pts.reduce((s,p)=>s+p[0]+p[1]-p[2],0)/f.pts.length,label:f.label}));
+
+  /* 접힌 입체가 속 비치는 껍데기처럼 보였다 — 뒷면까지 전부 그렸기 때문이다.
+     그런데 이 데이터는 면마다 감김 방향이 제각각이라(옆면과 뚜껑이 서로 반대)
+     감김만으로는 앞뒤를 가릴 수 없다. 그래서 먼저 모든 면의 감김을 '바깥쪽'으로
+     맞춘 뒤(Newell 법선이 입체 중심에서 바깥을 향하도록), 화면 감김으로 판정한다.
+     전개도(펼친 상태)는 모든 면이 한 평면에 있어 잘라내면 안 된다. */
+  let zmin=1e9, zmax=-1e9, cen=[0,0,0], np=0;
+  faces.forEach(f=>f.pts.forEach(q=>{
+    zmin=Math.min(zmin,q[2]); zmax=Math.max(zmax,q[2]);
+    cen[0]+=q[0]; cen[1]+=q[1]; cen[2]+=q[2]; np++; }));
+  cen=[cen[0]/np, cen[1]/np, cen[2]/np];
+  const solid=(zmax-zmin)>0.05;
+
+  const oriented = faces.map(f=>{
+    if(!solid) return f;
+    const P=f.pts; let N=[0,0,0], ctr=[0,0,0];
+    for(let i=0;i<P.length;i++){
+      const q=P[i], r=P[(i+1)%P.length];
+      N[0]+=(q[1]-r[1])*(q[2]+r[2]);
+      N[1]+=(q[2]-r[2])*(q[0]+r[0]);
+      N[2]+=(q[0]-r[0])*(q[1]+r[1]);
+      ctr[0]+=q[0]; ctr[1]+=q[1]; ctr[2]+=q[2];
+    }
+    const n=P.length, d=[ctr[0]/n-cen[0], ctr[1]/n-cen[1], ctr[2]/n-cen[2]];
+    const out = N[0]*d[0]+N[1]*d[1]+N[2]*d[2];
+    return out<0 ? Object.assign({},f,{pts:P.slice().reverse()}) : f;
+  });
+
+  const proj=oriented.map(f=>({pts:f.pts.map(isoPt),tone:f.tone,
+    z:f.pts.reduce((s,q)=>s+q[0]+q[1]-q[2],0)/f.pts.length,label:f.label}));
   let mnX=1e9,mxX=-1e9,mnY=1e9,mxY=-1e9;
-  proj.forEach(f=>f.pts.forEach(p=>{mnX=Math.min(mnX,p[0]);mxX=Math.max(mxX,p[0]);mnY=Math.min(mnY,p[1]);mxY=Math.max(mxY,p[1]);}));
+  proj.forEach(f=>f.pts.forEach(q=>{mnX=Math.min(mnX,q[0]);mxX=Math.max(mxX,q[0]);mnY=Math.min(mnY,q[1]);mxY=Math.max(mxY,q[1]);}));
   const pad=opt.pad||26;
-  const s=Math.min((w-pad*2)/Math.max(.001,mxX-mnX),(h-pad*2)/Math.max(.001,mxY-mnY));
-  const ox=(w-(mxX-mnX)*s)/2-mnX*s, oy=(h-(mxY-mnY)*s)/2-mnY*s;
-  proj.sort((a,b)=>a.z-b.z);                       // 화가 알고리즘
-  proj.forEach(f=>{
+  const s2=Math.min((w-pad*2)/Math.max(.001,mxX-mnX),(h-pad*2)/Math.max(.001,mxY-mnY));
+  const ox=(w-(mxX-mnX)*s2)/2-mnX*s2, oy=(h-(mxY-mnY)*s2)/2-mnY*s2;
+
+  const area=pts=>{ let t=0;
+    for(let i=0;i<pts.length;i++){ const q=pts[i], r=pts[(i+1)%pts.length];
+      t += q[0]*r[1] - r[0]*q[1]; }
+    return t/2; };
+  const draw = solid ? proj.filter(f=>area(f.pts) > 0) : proj;
+  /* 원기둥·원뿔처럼 조각이 많은 곡면은 조각마다 테두리를 그으면 격자처럼 보인다.
+     접힌 상태에서만, 조각이 많을 때 테두리를 빼서 매끈하게 보이게 한다.
+     (펼친 전개도에서 그 선은 접는 선이라 반드시 남겨야 한다) */
+  const smooth = solid && draw.length > 10;
+  draw.sort((a,b)=>a.z-b.z);                       // 화가 알고리즘
+  draw.forEach(f=>{
     c.beginPath();
-    f.pts.forEach((p,i)=>{const x=ox+p[0]*s,y=oy+p[1]*s; i?c.lineTo(x,y):c.moveTo(x,y);});
+    f.pts.forEach((q,i)=>{const x=ox+q[0]*s2,y=oy+q[1]*s2; i?c.lineTo(x,y):c.moveTo(x,y);});
     c.closePath();
     c.fillStyle=TONES[f.tone||0]; c.fill();
-    c.strokeStyle="#1c3247"; c.lineWidth=opt.lw||1.6; c.lineJoin="round"; c.stroke();
+    if(!smooth){ c.strokeStyle="#1c3247"; c.lineWidth=opt.lw||1.6; c.lineJoin="round"; c.stroke(); }
   });
 }
+
 
 /* ================= 펼쳐보기 ================= */
 const foldCv=document.getElementById("foldCv"), foldRange=document.getElementById("foldRange");
