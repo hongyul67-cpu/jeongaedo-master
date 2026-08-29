@@ -454,7 +454,12 @@ function drawFolded(cv,faces,opt){
     return out<0 ? Object.assign({},f,{pts:P.slice().reverse()}) : f;
   });
 
-  const proj=oriented.map(f=>({pts:f.pts.map(isoPt),tone:f.tone,
+  /* 전개도는 실제 모양·실제 길이가 나타나야 하는 그림인데 펼친 상태까지
+     isoPt 로 비스듬히 그려서, 직사각형이 평행사변형으로 보였다.
+     납작할수록 정면(실제 모양)에 가깝게, 접힐수록 등각으로 부드럽게 옮겨간다. */
+  const kIso=Math.max(0,Math.min(1,(zmax-zmin)/0.30));
+  const PT=p=>{ const b0=isoPt(p); return [p[0]+(b0[0]-p[0])*kIso, p[1]+(b0[1]-p[1])*kIso]; };
+  const proj=oriented.map(f=>({pts:f.pts.map(PT),tone:f.tone,
     z:f.pts.reduce((s,q)=>s+q[0]+q[1]-q[2],0)/f.pts.length,label:f.label}));
   let mnX=1e9,mxX=-1e9,mnY=1e9,mxY=-1e9;
   proj.forEach(f=>f.pts.forEach(q=>{mnX=Math.min(mnX,q[0]);mxX=Math.max(mxX,q[0]);mnY=Math.min(mnY,q[1]);mxY=Math.max(mxY,q[1]);}));
@@ -557,7 +562,10 @@ function renderQ(){
     const num=document.createElement("span"); num.className="num"; num.textContent="①②③④"[i]; b.appendChild(num);
     if(q.type==="method"){
       const t=document.createElement("div"); t.className="tx";
-      t.innerHTML=METHODS[o.m].label+"<small>"+METHODS[o.m].desc+"</small>"; b.appendChild(t);
+      /* 부제(desc)에 "각기둥·원기둥" 처럼 적용 입체가 적혀 있어,
+         "원기둥의 전개도법은?" 같은 발문과 낱말만 맞추면 답이 나왔다.
+         부제는 채점 뒤 해설(M.why)과 펼쳐보기에서 그대로 가르치므로 보기에서는 뺀다. */
+      t.textContent=METHODS[o.m].label; b.appendChild(t);
     }else{
       const cv=document.createElement("canvas"); b.appendChild(cv);
       const lab=document.createElement("div");
@@ -767,7 +775,14 @@ TABS.forEach(([id,v])=>el(id).onclick=()=>setMode(v));
 
 let rt=null;
 addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{
-  if(el("secLearn").classList.contains("hidden")){ if(quiz.q) renderQ(); } else renderLearn();
+  if(el("secLearn").classList.contains("hidden")){
+    if(!quiz.q) return;
+    /* 채점이 끝난 문제를 renderQ 로 다시 만들면 보기 잠금이 풀려,
+       틀린 답을 정답으로 고쳐 점수를 다시 얻을 수 있었다(채점 1회 위반).
+       채점 뒤에는 그림만 다시 그린다. */
+    if(quiz.answered) drawFolded(qStageCv, foldFaces(SOLIDS[quiz.q.solid].net(), quiz.q.type==="method"?1:0));
+    else renderQ();
+  } else renderLearn();
 },180);});
 
 setSolid("box");
