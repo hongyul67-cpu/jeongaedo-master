@@ -375,6 +375,61 @@ function pyramidNet(n,w,slant){
 }
 
 
+/* 편심(빗) 원뿔 — 꼭짓점이 밑면 중심에서 ecc 만큼 비켜 서 있다.
+   모선 길이가 저마다 달라 전개도가 좌우 비대칭이 되고 조각마다 접힘각도 다르다.
+   («정원뿔과 똑같은 대칭 부채꼴»로 그리면 방사선법으로 펼쳐지는 것처럼 보여
+     삼각형법을 쓰는 이유가 사라진다 — 그래서 따로 만든다)
+   ecc=0 을 넣으면 pyramidNet 의 정원뿔과 수치가 그대로 일치한다. */
+function obliqueConeNet(n, r, h, ecc){
+  const sub=(u,v)=>[u[0]-v[0],u[1]-v[1],u[2]-v[2]];
+  const crs=(u,v)=>[u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+  const dt=(u,v)=>u[0]*v[0]+u[1]*v[1]+u[2]*v[2];
+  const un=u=>{const l=Math.hypot(u[0],u[1],u[2])||1; return [u[0]/l,u[1]/l,u[2]/l];};
+  const cl=x=>Math.max(-1,Math.min(1,x));
+  const A=[ecc,0,h];
+  const V=i=>{const t=2*Math.PI*(i%n)/n; return [r*Math.cos(t), r*Math.sin(t), 0];};
+  const L=i=>Math.hypot(...sub(V(i),A));            // 모선 — i 마다 다르다
+  const c=2*r*Math.sin(Math.PI/n);                  // 밑면 한 변(현)
+  const apo=r*Math.cos(Math.PI/n);
+  const fn=i=>un(crs(sub(V(i),A), sub(V(i+1),A)));
+  const baseBend=Math.acos(cl(dt(fn(0),[0,0,-1])));
+
+  /* 펼치기 = 삼각형법 — 세 변(모선 두 개 + 현)으로 삼각형을 만들어 차례로 이어 붙인다 */
+  const ang=[];
+  for(let i=0;i<n;i++){ const a=L(i), b=L(i+1);
+    ang.push(Math.acos(cl((a*a+b*b-c*c)/(2*a*b)))); }
+  const total=ang.reduce((s2,x)=>s2+x,0);
+  const P=[]; let t=-Math.PI/2-total/2;
+  for(let i=0;i<=n;i++){ P.push([L(i)*Math.cos(t), L(i)*Math.sin(t)]); if(i<n) t+=ang[i]; }
+  const apex=[0,0];
+
+  // 밑면은 첫 조각의 바깥 모서리에 붙인다
+  const p0=P[0], p1=P[1];
+  const mx=(p0[0]+p1[0])/2, my=(p0[1]+p1[1])/2;
+  const ux=p1[0]-p0[0], uy=p1[1]-p0[1], ul=Math.hypot(ux,uy)||1;
+  let nx=-uy/ul, ny=ux/ul;
+  if(mx*nx+my*ny < 0){ nx=-nx; ny=-ny; }
+  const bc=[mx+nx*apo, my+ny*apo];
+  const a0=Math.atan2(p0[1]-bc[1], p0[0]-bc[0]);
+  let step=Math.atan2(p1[1]-bc[1], p1[0]-bc[0])-a0;
+  while(step>Math.PI) step-=2*Math.PI;
+  while(step<-Math.PI) step+=2*Math.PI;
+  const basePts=[];
+  for(let i=0;i<n;i++){ const th=a0+step*i; basePts.push([bc[0]+r*Math.cos(th), bc[1]+r*Math.sin(th)]); }
+
+  const F=[{pts:basePts,parent:null,hinge:null,angle:0,tone:2,label:"밑면"}];
+  for(let i=0;i<n;i++){
+    const q=P[i], s2=P[i+1];
+    const bend=(i===0)?0:Math.acos(cl(dt(fn(i-1),fn(i))));
+    F.push({pts:[q,s2,apex],
+            parent: i===0 ? 0 : i,
+            hinge:  i===0 ? [s2,q] : [q,apex],
+            angle:  i===0 ? -baseBend : -bend,
+            tone: i%2?1:0, label:"옆면"});
+  }
+  return F;
+}
+
 const SOLIDS={
   cube:{name:"정육면체",method:"parallel",net:()=>prismNet(4,1.5,1.5),
     note:"옆면 4장이 일렬로 펼쳐지고 위·아래 밑면이 붙습니다.",
@@ -397,7 +452,7 @@ const SOLIDS={
   cone:{name:"원뿔",method:"radial",net:()=>pyramidNet(24,0.26,2.4),
     note:"원뿔을 펼치면 <b>부채꼴</b>이 됩니다. 부채꼴의 반지름이 모선(ℓ)입니다.",
     formula:"부채꼴 중심각 = 360° × r / ℓ"},
-  oblq:{name:"편심 원뿔(깔때기)",method:"triangle",net:()=>pyramidNet(12,0.42,2.3),
+  oblq:{name:"편심 원뿔(깔때기)",method:"triangle",net:()=>obliqueConeNet(12,0.81,2.16,0.60),
     note:"위·아래 중심이 어긋나거나 면이 복잡하면 평행선법·방사선법을 쓸 수 없어, 면을 <b>삼각형으로 쪼개</b> 펼칩니다.",
     formula:"삼각형법 — 각 삼각형의 실제 길이를 구해 이어 붙임"}
 };
@@ -610,10 +665,25 @@ function submitQ(){
 }
 function startQuiz(type,total){
   const rv=el("qReview"); if(rv) rv.remove();
-  quiz={type,total:total||8,round:1,score:0,combo:0,best:0,answered:false,sel:null,rev:[],q:null,log:[],started:Date.now(),wrongDetail:[]};
+  quiz={type,total:total||8,round:1,score:0,combo:0,best:0,answered:false,sel:null,rev:[],q:null,log:[],started:Date.now(),wrongDetail:[],seen:new Set()};
   quiz.q=nextQ(); renderQ();
 }
-const nextQ=()=>makeQ(quiz.type==="exam"?pick(["method","which"]):quiz.type);
+/* 입체가 8개뿐이라 매번 무작위로 뽑으면 한 판(8문제) 안에서 같은 문항이
+   그대로 되풀이됐다(소실점 1번과 4번이 똑같이 나온 적 있음).
+   이미 낸 (유형+입체) 는 건너뛰고, 조합을 다 쓰면 그때 비우고 이어 간다. */
+const nextQ=()=>{
+  const type = quiz.type==="exam" ? pick(["method","which"]) : quiz.type;
+  if(!quiz.seen) quiz.seen=new Set();
+  let q=null;
+  for(let i=0;i<40;i++){
+    q=makeQ(type);
+    const key=q.type+"/"+q.solid;
+    if(!quiz.seen.has(key)){ quiz.seen.add(key); return q; }
+  }
+  quiz.seen.clear();
+  if(q) quiz.seen.add(q.type+"/"+q.solid);
+  return q;
+};
 btnSubmit.onclick=submitQ;
 btnNext.onclick=()=>{ if(quiz.round>=quiz.total){finish();return;} quiz.round++; quiz.q=nextQ(); renderQ(); };
 el("btnRestart").onclick=()=>startQuiz(quiz.type,quiz.total);
