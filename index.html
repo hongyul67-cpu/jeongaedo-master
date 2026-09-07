@@ -101,6 +101,14 @@
   <h1>전개도 마스터</h1>
   <p class="subtitle">입체의 겉면을 평면으로 <b>펼친 그림</b>이 전개도입니다. 슬라이더로 직접 <b>펼치고 접어보며</b> 전개도법 세 가지를 익힙니다.<br>상자·종이컵처럼 판재를 접어 만드는 것, <b>덕트·선박·항공기</b>처럼 형틀로 찍어 낼 수 없거나 크고 복잡한 제품을 만들 때 전개도를 씁니다.</p>
 
+  <!-- 선생님용 입구 — 학생용 펼쳐보기는 그대로 두고, 같은 내용을 교실 화면용
+       슬라이드로 한 벌 더 연다(공용 board-pro.js). 학생 흐름을 막지 않게 한 줄. -->
+  <div style="text-align:center;margin:2px 0 14px">
+    <button type="button" id="openBoard"
+      style="background:none;border:none;color:var(--muted,#8fa2bd);font-size:13px;font-weight:700;cursor:pointer">
+      📽️ 수업 슬라이드 열기 (선생님용) →</button>
+  </div>
+
   <div class="tabs" role="group" aria-label="모드 선택">
     <button class="tab" id="tabLearn" aria-pressed="true">📖 펼쳐보기</button>
     <button class="tab" id="tabMethod" aria-pressed="false">도전 ① 전개도법</button>
@@ -183,14 +191,14 @@
   }
 
   /* 오른쪽 아래 구석에는 공용 단추가 더 붙는다 —
-     class-mode.js 의 「🎓 수업모드」(.cm-launch) 와 fx.js 의 소리 토글(#fxSnd).
+     fx.js 의 소리 토글(#fxSnd).
      계급 배지는 z-index 가 낮아 그 밑에 깔려 안 보이므로, 붙어 있는 것들을 재서
      제일 위로 올린다. backbar.js 가 왼쪽 아래에서 쓰는 방식과 같다.
-     두 단추가 fx.js 처럼 늦게 붙는 경우가 있어 load 뒤에 한 번 더 잰다. */
+     소리 토글이 fx.js 처럼 늦게 붙는 경우가 있어 load 뒤에 한 번 더 잰다. */
   function stackBadge(el){
     function place(){
       var up=10;
-      ['.cm-launch','#fxSnd'].forEach(function(s){
+      ['#fxSnd'].forEach(function(s){
         var o=document.querySelector(s); if(!o) return;
         var r=o.getBoundingClientRect();
         if(r.height) up=Math.max(up, Math.round(window.innerHeight-r.top)+6);
@@ -252,7 +260,6 @@
   }, 60);
 })();
 </script>
-<script src="https://hongyul67-cpu.github.io/links/class-mode.js"></script>
 <script>
 (function(){
 "use strict";
@@ -465,6 +472,10 @@ const METHODS={
     why:"평행하지도 한 점에 모이지도 않는 복잡한 면을, <b>삼각형으로 분할</b>해 펼칠 때 씁니다.<br>윗면이 기울어 잘린 원뿔이나 위·아래 중심이 어긋난 깔때기처럼, 각 삼각형의 <b>실제 길이</b>를 구해 차례로 이어 붙입니다."}
 };
 const SOLID_IDS=Object.keys(SOLIDS);
+/* 수업 슬라이드(lesson.js)가 같은 전개도 좌표로 그림을 다시 그린다 —
+   펼쳐보기의 전개도와 슬라이드의 전개도가 어긋나지 않게 하려는 것이다.
+   const 는 window 에 저절로 붙지 않아 여기서 한 번 내보낸다. */
+window.SOLIDS=SOLIDS; window.METHODS=METHODS;
 
 /* ================= 그리기 ================= */
 function fit(cv){
@@ -859,6 +870,43 @@ setSolid("box");
 setMode("learn");
 })();
 </script>
+<!-- 수업 슬라이드 — 원고(lesson.js) 는 이 저장소 것, 화면(board-pro.js) 은 links 의 공용 파일이다.
+     저장소마다 뷰어 사본을 두지 않는다. 고칠 일이 생기면 links 하나만 고친다. -->
+<script src="lesson.js"></script>
+<script src="https://hongyul67-cpu.github.io/links/board-pro.js"></script>
+<script>
+(function(){
+  var btn=document.getElementById('openBoard');
+  if(!btn) return;
+  btn.onclick=function(){
+    var ALL=window.LESSON||[], LF=window.LESSFIG||{};
+    if(!window.BoardPro || !ALL.length){
+      alert('수업자료를 불러오지 못했습니다. 잠시 뒤 새로고침해 주세요.'); return;
+    }
+    var units=[];
+    ALL.forEach(function(s){ if(units.indexOf(s.u)<0) units.push(s.u); });
+    var menu=units.map(function(u){
+      var list=ALL.filter(function(s){ return s.u===u; });
+      return { icon:'📦', title:u, desc:'슬라이드 '+list.length+'장 · '+list[0].t,
+               run:{ kind:'lesson', deck:list } };
+    });
+    menu.push({ icon:'📚', wide:true, title:'전체 이어서 ('+ALL.length+'장)',
+                desc:'전개도란 → 평행선법 → 방사선법 → 삼각형법 순서로 진행합니다.',
+                run:{ kind:'lesson', deck:ALL } });
+    menu.push({ icon:'⬜', wide:true, title:'빈 칠판',
+                desc:'슬라이드 없이 판서만. 전개도를 직접 그려 보일 때.',
+                run:{ kind:'blank' } });
+    BoardPro.open({
+      title:'📽️ 전개도 · 수업 슬라이드',
+      sub:'요점 → <b>발문</b> → 퀴즈 → 정답을 하나씩 엽니다. 화면 어디든 바로 판서됩니다.<br>'+
+          '요점 속 <b>파란 빈칸</b>은 눌러야 답이 보입니다.',
+      menu: menu,
+      fig: function(s){ return (s.fig && LF[s.fig]) ? LF[s.fig]() : ''; }
+    });
+  };
+})();
+</script>
+
 <!-- 공용 기록 초기화 (교실 공용 PC용) -->
 <script src="https://hongyul67-cpu.github.io/links/reset.js"></script>
 <script src="https://hongyul67-cpu.github.io/links/backbar.js"></script>
