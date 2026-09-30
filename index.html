@@ -22,6 +22,14 @@
   .eyebrow{font-size:.74rem;letter-spacing:.18em;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:6px}
   h1{font-size:1.5rem;margin:0 0 4px}
   .howto{margin-top:10px;padding-top:10px;border-top:1px solid rgba(234,244,255,.14);font-size:.9rem;line-height:1.6;opacity:.92}
+  /* 그림 (figs.js) — 그림 안에 흰 종이 바탕이 들어 있다 */
+  .figbox{background:var(--panel-light);border:1px solid rgba(234,244,255,.14);border-radius:12px;margin:0 0 14px;padding:2px 14px 14px}
+  .figbox>summary{cursor:pointer;font-weight:800;font-size:.95rem;padding:10px 0;color:var(--text)}
+  .figbox>summary small{font-weight:600;color:var(--text-dim);margin-left:6px}
+  .fig-gallery figcaption{color:var(--text-dim)}
+  .learnFigs{margin-top:14px}
+  .learnFigs .lfh{font-size:.84rem;color:var(--text-dim);font-weight:700;margin-bottom:8px}
+  @media(max-width:560px){.figbox{padding:2px 8px 10px}}
   .subtitle{color:var(--text-dim);font-size:.94rem;margin-bottom:16px;line-height:1.55}
   .panel{background:var(--panel);border:1px solid rgba(234,244,255,.12);border-radius:14px;padding:20px;margin-bottom:16px}
   .tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
@@ -118,6 +126,7 @@
 
   <section id="secLearn">
     <div class="panel">
+      <div id="figAll"></div>
       <div class="row">
         <span class="lab">입체</span>
         <div class="seg" id="solidSeg"></div>
@@ -136,6 +145,7 @@
       </div>
 
       <div class="explain" id="learnExplain"></div>
+      <div class="learnFigs" id="learnFigs"></div>
     </div>
   </section>
 
@@ -173,6 +183,9 @@
 </div>
 <footer>기초제도 Ⅲ. 제도의 기본 도법 — 5. 전개도 그리기<br>제작: hong · 기계 계열 특성화고 수업 보조 도구</footer>
 
+<!-- 그림 — 공용 도우미 fig.js(사본 금지) + 이 도구의 그림 모음 figs.js. 펼쳐보기와 수업 슬라이드가 함께 쓴다 -->
+<script src="https://hongyul67-cpu.github.io/links/fig.js"></script>
+<script src="figs.js"></script>
 <script src="https://hongyul67-cpu.github.io/links/collector.js" data-tool="전개도 마스터"></script>
 <script src="https://hongyul67-cpu.github.io/links/rank.js" data-tool="제도 마스터" data-pace="class"></script>
 <script>
@@ -570,7 +583,26 @@ function setSolid(id){
   solidSeg.querySelectorAll(".segBtn").forEach(b=>b.setAttribute("aria-pressed",b.dataset.id===id));
   renderLearn();
 }
+/* 그림 — 맨 위 「그림으로 먼저 보기」(전부) + 고른 입체 설명 아래(그 입체 것만) */
+let figSolid=null;
+function figKeys(id){
+  if(!window.FIG||!window.FIGS) return [];
+  return Object.keys(FIGS).filter(k=>!id||(FIGS[k].cards||[]).indexOf(id)>=0);
+}
+(function(){
+  const all=figKeys(null), box=document.getElementById("figAll");
+  if(!all.length) return;
+  box.innerHTML='<details class="figbox"><summary>🖼️ 그림으로 먼저 보기 <small>'+all.length+'장 · 그림을 누르면 크게</small></summary>'+
+    FIG.gallery(all)+'</details>';
+})();
+function renderLearnFigs(){
+  if(figSolid===curSolid) return;
+  figSolid=curSolid;
+  const ks=figKeys(curSolid), box=document.getElementById("learnFigs");
+  box.innerHTML=ks.length?'<div class="lfh">🖼️ '+SOLIDS[curSolid].name+' — 그림으로 보기</div>'+FIG.gallery(ks):'';
+}
 function renderLearn(){
+  renderLearnFigs();
   if(!cachedNet) cachedNet=SOLIDS[curSolid].net();
   drawFolded(foldCv, foldFaces(cachedNet,curT));
   const S=SOLIDS[curSolid], M=METHODS[S.method];
